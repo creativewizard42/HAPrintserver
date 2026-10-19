@@ -1,0 +1,220 @@
+"""HA OS USB print server. CUPS owns jobs; this process supervises services."""
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import subprocess
+import time
+from urllib.parse import unquote
+from xml.etree import ElementTree as ET
+
+QUEUE_PATTERN = r"[A-Za-z][A-Za-z0-9_-]{0,62}"
+
+
+def validate(options):
+    if not re.fullmatch(QUEUE_PATTERN, options["printer_name"]):
+        raise ValueError("Ongeldige printer_name")
+    password = options.get("admin_password", "")
+    if len(password) < 12 or any(c in password for c in "\r\n\x00"):
+        raise ValueError("Stel admin_password in op minimaal 12 tekens")
+    uri = options.get("device_uri", "")
+    if uri and (not uri.startswith("usb://") or any(c.isspace() for c in uri)):
+        raise ValueError("device_uri moet een usb:// URI zijn, of leeg voor detectie")
+    description = options["printer_description"]
+    if not description.strip() or any(ord(c) < 32 for c in description):
+        raise ValueError("Ongeldige printer_description")
+    return options
+
+
+def cups_config():
+    return """Port 631
+Listen /run/cups/cups.sock
+ServerAlias *
+WebInterface Yes
+Browsing Off
+DefaultAuthType Basic
+DefaultEncryption IfRequested
+DefaultShared Yes
+DefaultPolicy default
+ErrorPolicy retry-job
+JobRetryInterval 30
+JobRetryLimit 100
+PreserveJobFiles No
+PreserveJobHistory Yes
+MaxJobs 100
+MaxRequestSize 52428800
+LogLevel warn
+<Location />
+  Order allow,deny
+  Allow localhost
+  Allow @LOCAL
+</Location>
+<Location /admin>
+  AuthType Default
+  Require user @SYSTEM
+  Encryption Required
+  Order allow,deny
+  Allow localhost
+  Allow @LOCAL
+</Location>
+<Policy default>
+  <Limit CUPS-Add-Modify-Printer CUPS-Delete-Printer CUPS-Set-Default CUPS-Add-Modify-Class CUPS-Delete-Class CUPS-Accept-Jobs CUPS-Reject-Jobs Pause-Printer Resume-Printer Enable-Printer Disable-Printer Pause-Printer-After-Current-Job Hold-New-Jobs Release-Held-New-Jobs Restart-Printer Shutdown-Printer Startup-Printer Promote-Job Schedule-Job-After CUPS-Authenticate-Job>
+    AuthType Default
+    Require user @SYSTEM
+    Order deny,allow
+  </Limit>
+  <Limit Send-Document Send-URI Hold-Job Release-Job Restart-Job Purge-Jobs Set-Job-Attributes Cancel-Job CUPS-Move-Job Cancel-My-Jobs Close-Job>
+    Require user @OWNER @SYSTEM
+    Order deny,allow
+  </Limit>
+  <Limit All>
+    Order deny,allow
+  </Limit>
+</Policy>
+"""
+
+
+def airprint_xml(name, description):
+    root = ET.Element("service-group")
+    ET.SubElement(root, "name").text = description
+    service = ET.SubElement(root, "service")
+    ET.SubElement(service, "type").text = "_ipp._tcp"
+    ET.SubElement(service, "subtype").text = "_universal._sub._ipp._tcp"
+    ET.SubElement(service, "port").text = "631"
+    for item in ["txtvers=1", "qtotal=1", f"rp=printers/{name}",
+                 f"ty={description}", "product=(HP LaserJet Pro P1102w)",
+                 "pdl=application/pdf,image/urf,image/jpeg,image/pwg-raster",
+                 "URF=W8,SRGB24,CP1,RS600", "Color=F", "Duplex=F"]:
+        ET.SubElement(service, "txt-record").text = item
+    return ET.tostring(root, encoding="unicode")
+
+
+def select_device(output):
+    matches = []
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1].startswith("usb://"):
+            if "p1102w" in unquote(parts[1]).lower():
+                matches.append(parts[1])
+    if len(matches) > 1:
+        raise ValueError("Meerdere P1102w-printers: stel device_uri expliciet in")
+    return matches[0] if matches else None
+
+
+def select_driver(output):
+    for line in output.splitlines():
+        if "p1102w" in line.lower() and "foo2zjs" in line.lower():
+            return line.split()[0]
+    raise RuntimeError("Geen P1102w foo2zjs-driver gevonden")
+
+
+def run(*args):
+    return subprocess.run(args, check=True, text=True, capture_output=True, timeout=45).stdout
+
+
+def persist(source, target, seed=None):
+    if not target.exists():
+        shutil.copytree(seed or source, target)
+    if source.is_symlink():
+        source.unlink()
+    elif source.exists():
+        shutil.rmtree(source)
+    source.symlink_to(target, target_is_directory=True)
+
+
+def main():
+    options = validate(json.loads(Path("/data/options.json").read_text()))
+    data = Path("/data")
+    persist(Path("/etc/cups"), data / "cups", Path("/opt/cups-default"))
+    persist(Path("/var/spool/cups"), data / "spool")
+    persist(Path("/var/cache/cups"), data / "cache")
+    Path("/etc/cups/cupsd.conf").write_text(cups_config())
+    subprocess.run(["chpasswd"], input=f"printadmin:{options['admin_password']}\n",
+                   text=True, check=True)
+    for folder in ["/run/cups", "/run/dbus", "/run/avahi-daemon"]:
+        Path(folder).mkdir(parents=True, exist_ok=True)
+    Path("/etc/avahi/avahi-daemon.conf").write_text("""[server]
+host-name=hp-printserver
+use-ipv4=yes
+use-ipv6=yes
+allow-point-to-point=no
+[wide-area]
+enable-wide-area=no
+[publish]
+publish-workstation=no
+[reflector]
+enable-reflector=no
+""")
+    # Logging to HA app logs while retaining Debian's default path/permission settings.
+    files = Path("/etc/cups/cups-files.conf")
+    content = files.read_text()
+    for key in ["ErrorLog", "AccessLog", "PageLog"]:
+        content = re.sub(rf"(?m)^\s*{key}\s+.*$", f"{key} stderr", content)
+    files.write_text(content)
+    run("cupsd", "-t")
+    children = []
+    stopping = False
+
+    def stop(_signum, _frame):
+        nonlocal stopping
+        stopping = True
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        children.append(subprocess.Popen(["dbus-daemon", "--system", "--nofork", "--nopidfile"]))
+        time.sleep(1)
+        children.append(subprocess.Popen(["avahi-daemon", "--no-chroot"]))
+        children.append(subprocess.Popen(["cupsd", "-f"]))
+        for _ in range(30):
+            if Path("/run/cups/cups.sock").exists():
+                break
+            time.sleep(1)
+        driver = select_driver(run("lpinfo", "-m"))
+        configured = False
+        while not stopping:
+            if any(child.poll() is not None for child in children):
+                raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
+            if not configured:
+                try:
+                    uri = options.get("device_uri") or select_device(run("lpinfo", "-v"))
+                    if uri:
+                        name = options["printer_name"]
+                        # Do not re-enable a deliberately paused queue at every restart.
+                        existing = subprocess.run(["lpstat", "-p", name], capture_output=True).returncode == 0
+                        args = ["lpadmin", "-p", name, "-v", uri, "-m", driver,
+                                "-D", options["printer_description"],
+                                "-o", "printer-is-shared=true", "-o", "printer-error-policy=retry-job",
+                                "-o", "PageSize=A4"]
+                        if not existing:
+                            args.append("-E")
+                        run(*args)
+                        run("lpadmin", "-d", name)
+                        Path("/etc/avahi/services/airprint.service").write_text(
+                            airprint_xml(name, options["printer_description"]))
+                        print(f"Printer gereed: {name}; IPP-poort 631; AirPrint gepubliceerd", flush=True)
+                        configured = True
+                    else:
+                        print("Wacht op HP P1102w via USB; controleer kabel en voeding", flush=True)
+                except subprocess.SubprocessError:
+                    print("USB/CUPS-detectie nog niet gereed; nieuwe poging over 15 seconden", flush=True)
+            for _ in range(15):
+                if stopping:
+                    break
+                time.sleep(1)
+    finally:
+        for child in reversed(children):
+            if child.poll() is None:
+                child.terminate()
+        for child in reversed(children):
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+
+
+if __name__ == "__main__":
+    main()

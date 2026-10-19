@@ -1,0 +1,18 @@
+name: Validate printserver
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Build container
+        run: docker build -t hp-usb-airprint:test hp_printserver
+      - name: Validate CUPS and PDF to P1102w filter chain
+        run: >-
+          docker run --rm --entrypoint python3
+          -v "$PWD/tests/container_smoke.py:/tmp/container_smoke.py:ro"
+          hp-usb-airprint:test /tmp/container_smoke.py
