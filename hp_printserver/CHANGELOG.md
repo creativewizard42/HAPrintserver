@@ -1,3 +1,7 @@
+# 0.1.2
+
+- Webinterface-URL gecorrigeerd naar het verplichte Home Assistant-poortsjabloon; dit voorkomt dat Supervisor de appconfiguratie afwijst.
+
 # 0.1.1
 
 - Appmarkering gewijzigd naar stable, zodat de app zonder experimentele-appfilter zichtbaar is.
