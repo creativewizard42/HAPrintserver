@@ -40,6 +40,18 @@ class ServerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.select_device("direct usb://HP/P1102w?serial=1\ndirect usb://HP/P1102w?serial=2")
 
+    def test_other_usb_devices_and_serials_are_not_model_matches(self):
+        output = "\n".join([
+            "direct usb://SSD/Storage?serial=P1102w",
+            "direct usb://Zigbee/Radio",
+            "direct usb://HP/Other?serial=P1102w",
+            "direct usb://Other/P1102w",
+            "direct usb://HP/P1102wExtra",
+        ])
+        self.assertIsNone(server.select_device(output))
+        uri = "usb://HP/LaserJet%20Professional%20P1102w?serial=real-printer"
+        self.assertEqual(server.select_device(output + "\ndirect " + uri), uri)
+
     def test_driver_selection_requires_model_and_filter(self):
         self.assertEqual(server.select_driver(
             "wrong HP P1102\nfoo.ppd HP P1102w Foomatic/foo2zjs-z2"), "foo.ppd")

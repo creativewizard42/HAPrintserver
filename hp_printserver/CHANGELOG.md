@@ -1,3 +1,10 @@
+# 0.1.3
+
+- Herstel schrijfrechten van de blijvende CUPS-cache, ook bij bestaande installaties.
+- Detectie vereist HP als fabrikant en P1102w als model; andere apparaten en serienummers worden niet als model geselecteerd.
+- Log USB-apparaten bij ontbrekende printerdetectie, bij opstart en iedere vijf minuten.
+- Beperk AirPrint-publicatie tot fysieke netwerkinterfaces indien beschikbaar.
+
 # 0.1.2
 
 - Webinterface-URL gecorrigeerd naar het verplichte Home Assistant-poortsjabloon; dit voorkomt dat Supervisor de appconfiguratie afwijst.

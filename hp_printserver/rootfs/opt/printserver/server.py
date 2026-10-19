@@ -7,7 +7,7 @@ import shutil
 import signal
 import subprocess
 import time
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree as ET
 
 QUEUE_PATTERN = r"[A-Za-z][A-Za-z0-9_-]{0,62}"
@@ -96,7 +96,9 @@ def select_device(output):
     for line in output.splitlines():
         parts = line.split()
         if len(parts) >= 2 and parts[1].startswith("usb://"):
-            if "p1102w" in unquote(parts[1]).lower():
+            device = urlsplit(parts[1])
+            if device.netloc.lower() == "hp" and re.search(
+                    r"\bp1102w\b", unquote(device.path), re.IGNORECASE):
                 matches.append(parts[1])
     if len(matches) > 1:
         raise ValueError("Meerdere P1102w-printers: stel device_uri expliciet in")
@@ -130,13 +132,23 @@ def main():
     persist(Path("/etc/cups"), data / "cups", Path("/opt/cups-default"))
     persist(Path("/var/spool/cups"), data / "spool")
     persist(Path("/var/cache/cups"), data / "cache")
+    # copytree preserves modes but not Unix ownership. cupsd drops privileges
+    # for driver discovery, so an originally root-owned copy is not writable.
+    for entry in [data / "cache", *(data / "cache").rglob("*")]:
+        if not entry.is_symlink():
+            shutil.chown(entry, user="lp", group="lp")
+    (data / "cache").chmod(0o770)
     Path("/etc/cups/cupsd.conf").write_text(cups_config())
     subprocess.run(["chpasswd"], input=f"printadmin:{options['admin_password']}\n",
                    text=True, check=True)
     for folder in ["/run/cups", "/run/dbus", "/run/avahi-daemon"]:
         Path(folder).mkdir(parents=True, exist_ok=True)
+    interfaces = sorted(entry.name for entry in Path("/sys/class/net").iterdir()
+                        if (entry / "device").exists())
+    interface_config = ("allow-interfaces=" + ",".join(interfaces) + "\n") if interfaces else ""
     Path("/etc/avahi/avahi-daemon.conf").write_text("""[server]
 host-name=hp-printserver
+""" + interface_config + """\
 use-ipv4=yes
 use-ipv6=yes
 allow-point-to-point=no
@@ -174,12 +186,14 @@ enable-reflector=no
             time.sleep(1)
         driver = select_driver(run("lpinfo", "-m"))
         configured = False
+        diagnostic_attempt = 0
         while not stopping:
             if any(child.poll() is not None for child in children):
                 raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
             if not configured:
                 try:
-                    uri = options.get("device_uri") or select_device(run("lpinfo", "-v"))
+                    devices = run("lpinfo", "-v")
+                    uri = options.get("device_uri") or select_device(devices)
                     if uri:
                         name = options["printer_name"]
                         # Do not re-enable a deliberately paused queue at every restart.
@@ -198,6 +212,12 @@ enable-reflector=no
                         configured = True
                     else:
                         print("Wacht op HP P1102w via USB; controleer kabel en voeding", flush=True)
+                        if diagnostic_attempt % 20 == 0:
+                            usb_devices = [line for line in devices.splitlines() if "usb://" in line]
+                            print("CUPS USB-apparaten: " + (" | ".join(usb_devices) or "geen"), flush=True)
+                            usb = run("lsusb")
+                            print("USB-busdiagnose:\n" + (usb.strip() or "geen apparaten"), flush=True)
+                        diagnostic_attempt += 1
                 except subprocess.SubprocessError:
                     print("USB/CUPS-detectie nog niet gereed; nieuwe poging over 15 seconden", flush=True)
             for _ in range(15):

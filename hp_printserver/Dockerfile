@@ -5,7 +5,7 @@ RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
        cups cups-client cups-filters printer-driver-foo2zjs \
-       ghostscript avahi-daemon dbus python3 ca-certificates psutils \
+       ghostscript avahi-daemon dbus python3 ca-certificates psutils usbutils \
     && useradd --no-create-home --shell /usr/sbin/nologin --groups lpadmin printadmin \
     && usermod -a -G lpadmin root \
     && mkdir -p /opt/cups-default \
