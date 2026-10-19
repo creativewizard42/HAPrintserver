@@ -1,3 +1,8 @@
+# 0.1.1
+
+- Appmarkering gewijzigd naar stable, zodat de app zonder experimentele-appfilter zichtbaar is.
+- Printerwerking en AirPrint moeten nog op de doelapparatuur worden getest.
+
 # 0.1.0
 
 - Eerste experimentele versie voor HA OS op aarch64 en amd64.
