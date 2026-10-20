@@ -98,7 +98,7 @@ def select_device(output):
         if len(parts) >= 2 and parts[1].startswith("usb://"):
             device = urlsplit(parts[1])
             if device.netloc.lower() == "hp" and re.search(
-                    r"\bp1102w\b", unquote(device.path), re.IGNORECASE):
+                    r"\bp\s*1102w\b", unquote(device.path), re.IGNORECASE):
                 matches.append(parts[1])
     if len(matches) > 1:
         raise ValueError("Meerdere P1102w-printers: stel device_uri expliciet in")

@@ -40,6 +40,11 @@ class ServerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.select_device("direct usb://HP/P1102w?serial=1\ndirect usb://HP/P1102w?serial=2")
 
+    def test_usb_model_with_space_from_printer_log(self):
+        uri = "usb://HP/LaserJet%20Professional%20P%201102w?serial=000000000W438BQ6PR1a"
+        self.assertEqual(server.select_device("direct " + uri), uri)
+        self.assertIsNone(server.select_device("direct usb://HP/P%201102wExtra"))
+
     def test_other_usb_devices_and_serials_are_not_model_matches(self):
         output = "\n".join([
             "direct usb://SSD/Storage?serial=P1102w",

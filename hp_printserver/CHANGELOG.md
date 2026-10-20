@@ -1,3 +1,7 @@
+# 0.1.4
+
+- Herken ook de USB-modelnaam "HP LaserJet Professional P 1102w" met een spatie tussen P en 1102w.
+
 # 0.1.3
 
 - Herstel schrijfrechten van de blijvende CUPS-cache, ook bij bestaande installaties.
