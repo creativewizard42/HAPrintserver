@@ -140,7 +140,7 @@ compatibiliteitspoging voor mogelijke USB-communicatieproblemen, geen bewezen
 oplossing voor deze printer in Auto-Off. Het verandert geen USB-apparaten of
 hostinstellingen en maakt geen extra printopdracht.
 
-1. Werk de app bij naar 0.1.8 en stel `usb_unidir: true` en tijdelijk
+1. Werk de app bij naar 0.1.9 en stel `usb_unidir: true` en tijdelijk
    `debug_logging: true` in. Herstart de app. De startlog toont beide opties.
 2. Controleer bestaande jobs in CUPS voordat je een nieuwe opdracht verstuurt.
    Een reeds vastgelopen job krijgt gewijzigde wachtrijdefaults niet gegarandeerd
@@ -157,6 +157,13 @@ hostinstellingen en maakt geen extra printopdracht.
    onnodige documentnamen of andere persoonsgegevens uit debuglogs.
 5. Zet `debug_logging` na de test weer uit. Als de compatibiliteitsmodus geen
    verbetering geeft, kan `usb_unidir: false` als vergelijking worden getest.
+
+Vanaf 0.1.9 worden HTTP-debugregels uit het app-log gefilterd; opdrachtregels,
+backendmeldingen, waarschuwingen en fouten blijven zichtbaar. De monitor toont
+ook `usb-unidir per job`. Een oude opdracht kan nog een andere of ontbrekende
+optie hebben. `USB-busaanwezig` controleert uitsluitend de USB-identiteit en het
+serienummer via sysfs; dit bewijst geen toegang tot de interface of ontwaken.
+Bij een expliciete `device_uri` wordt geen automatische USB-detectie gestart.
 
 Iedere minuut hoort nu `IPP-monitor actief` te verschijnen. Ontbreekt dat ook
 na de opstartmelding van 0.1.8, dan draait de verwachte versie niet of loopt de

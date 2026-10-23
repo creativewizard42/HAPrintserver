@@ -33,6 +33,34 @@ class ServerTests(unittest.TestCase):
         self.assertIn("LogLevel info\n", server.cups_config())
         self.assertIn("LogLevel debug\n", server.cups_config(True))
 
+    def test_cups_log_relay_keeps_jobs_and_errors_but_drops_http_debug(self):
+        import io
+        messages = []
+        source = io.StringIO(
+            'D [time] [Client 1] bytes=0\n'
+            'D [time] [Job 3] Forced uni-directional communication\n'
+            'E [time] USB failure\n'
+            'I [time] Started backend\n')
+        server.relay_cups_logs(source, lambda message, **kwargs: messages.append(message))
+        self.assertEqual(len(messages), 3)
+        self.assertTrue(any('Forced uni-directional' in line for line in messages))
+        self.assertTrue(any('USB failure' in line for line in messages))
+
+    def test_usb_presence_requires_target_model_and_exact_serial(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            device = root / '1-1'
+            device.mkdir()
+            for name, value in [('idVendor', '03f0'), ('idProduct', '102a'), ('serial', 'target')]:
+                (device / name).write_text(value + '\n')
+            uri = 'usb://HP/P1102w?serial=target'
+            self.assertTrue(server.usb_present(uri, root))
+            self.assertFalse(server.usb_present('usb://HP/P1102w?serial=other', root))
+            (device / 'idProduct').write_text('0001')
+            self.assertFalse(server.usb_present(uri, root))
+            self.assertIsNone(server.usb_present('usb://HP/P1102w', root))
+
     def test_empty_password_requires_configuration(self):
         options = self.options()
         options["admin_password"] = ""

@@ -1,3 +1,11 @@
+# 0.1.9
+
+- Behoud opdracht- en backenddebugregels in het app-log, maar onderdruk HTTP-debugruis die de backendstart uit de beschikbare loghistorie verdrong. Waarschuwingen en fouten blijven zichtbaar.
+- Voortgangscontroles lezen uitsluitend USB-sysfs-metadata voor HP 03f0:102a en het exacte serienummer; geen herhaalde CUPS USB-detectie tijdens een actieve job. Detectie-afwezigheid door een bezette backend wordt zo vermeden.
+- Een expliciete device_uri slaat de voorafgaande automatische USB-detectie over.
+- Log iedere minuut de effectieve usb-unidir-jobattributen, ook voor bestaande opdrachten.
+- Containertest controleert de werkelijke backendargumenten via een testbackend en dezelfde libcups-optieparser als de USB-backend; beide modi en de volledige filterketen worden getest zonder fysiek USB-verkeer.
+
 # 0.1.8
 
 - USB-compatibiliteitsmodus `usb_unidir` (standaard aan): geef de CUPS USB-backend `usb-unidir` mee via de wachtrijdefaults om het bidirectionele terugleeskanaal uit te schakelen. Dit is een mogelijke workaround voor vastlopende USB-communicatie, geen bevestigd wekcommando of bewezen oplossing voor Auto-Off.

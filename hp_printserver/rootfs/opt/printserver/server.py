@@ -7,7 +7,8 @@ import shutil
 import signal
 import subprocess
 import time
-from urllib.parse import unquote, urlsplit
+import threading
+from urllib.parse import parse_qs, unquote, urlsplit
 from xml.etree import ElementTree as ET
 
 QUEUE_PATTERN = r"[A-Za-z][A-Za-z0-9_-]{0,62}"
@@ -138,6 +139,35 @@ def persist(source, target, seed=None):
     source.symlink_to(target, target_is_directory=True)
 
 
+def relay_cups_logs(stream, log=print):
+    # HTTP debug traffic otherwise evicts the backend startup from HA's logs.
+    # Keep every job diagnostic and all non-debug messages, including errors.
+    for line in stream:
+        if not line.startswith("D [") or re.search(r"\[Job \d+\]", line):
+            log(line.rstrip(), flush=True)
+
+
+def usb_present(uri, root=Path("/sys/bus/usb/devices")):
+    """Inspect only sysfs metadata; never claim a busy USB interface to probe it."""
+    device = urlsplit(uri)
+    serial = parse_qs(device.query).get("serial", [None])[0]
+    if device.scheme != "usb" or device.netloc.lower() != "hp" or not serial:
+        return None
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        try:
+            if ((entry / "idVendor").read_text().strip().lower() == "03f0"
+                    and (entry / "idProduct").read_text().strip().lower() == "102a"
+                    and (entry / "serial").read_text().strip() == serial):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def main():
     import cups
     from monitor import JobMonitor
@@ -198,7 +228,11 @@ enable-reflector=no
         children.append(subprocess.Popen(["dbus-daemon", "--system", "--nofork", "--nopidfile"]))
         time.sleep(1)
         children.append(subprocess.Popen(["avahi-daemon", "--no-chroot"]))
-        children.append(subprocess.Popen(["cupsd", "-f"]))
+        cupsd = subprocess.Popen(["cupsd", "-f"], stderr=subprocess.PIPE,
+                                 text=True, encoding="utf-8", errors="replace")
+        children.append(cupsd)
+        log_thread = threading.Thread(target=relay_cups_logs, args=(cupsd.stderr,), daemon=True)
+        log_thread.start()
         for _ in range(30):
             if Path("/run/cups/cups.sock").exists():
                 break
@@ -219,8 +253,11 @@ enable-reflector=no
                 raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
             if not configured:
                 try:
-                    devices = run("lpinfo", "-v")
-                    uri = options.get("device_uri") or select_device(devices)
+                    uri = options.get("device_uri")
+                    devices = ""
+                    if not uri:
+                        devices = run("lpinfo", "-v")
+                        uri = select_device(devices)
                     if uri:
                         name = options["printer_name"]
                         # Do not re-enable a deliberately paused queue at every restart.
@@ -251,9 +288,7 @@ enable-reflector=no
                 try:
                     connection = cups.Connection(host="/run/cups/cups.sock")
                     monitor.update(connection, options["printer_name"], time.monotonic(),
-                                   lambda expected: any(
-                                       line.split()[1:2] == [expected]
-                                       for line in run("lpinfo", "-v").splitlines()))
+                                   usb_present)
                     status = run("lpstat", "-p", options["printer_name"], "-l")
                     jobs = run("lpstat", "-W", "not-completed", "-o", options["printer_name"])
                     snapshot = status.strip() + "\n" + (jobs.strip() or "Geen wachtende printopdrachten")

@@ -20,7 +20,7 @@ class JobMonitor:
                                     requested_attributes=[
                                         "job-id", "job-printer-uri", "job-state",
                                         "job-state-reasons", "job-state-message",
-                                        "job-impressions-completed"])
+                                        "job-impressions-completed", "usb-unidir"])
         # Some servers return only a minimal job list. Do not silently discard
         # jobs when their queue URI is absent from Get-Jobs.
         active = {job: (connection.getJobAttributes(job)
@@ -29,12 +29,16 @@ class JobMonitor:
         active = {job: attributes for job, attributes in active.items()
                   if attributes.get("job-printer-uri", "").endswith("/printers/" + name)}
         if self.last_heartbeat is None or now - self.last_heartbeat >= 60:
+            effective = {job: attrs.get("usb-unidir", "niet ingesteld")
+                         for job, attrs in active.items()}
             self.log(f"IPP-monitor actief: {len(active)} openstaande jobs voor {name}; "
+                     f"usb-unidir per job={effective}; "
                      "printerstatus is geen bevestiging van fysiek ontwaken.")
             self.last_heartbeat = now
         for job, attrs in active.items():
             state = {key: attrs.get(key) for key in (
-                "job-state", "job-state-reasons", "job-state-message", "job-impressions-completed")}
+                "job-state", "job-state-reasons", "job-state-message", "job-impressions-completed",
+                "usb-unidir")}
             record = self.jobs.setdefault(job, {"since": now, "checks": 0, "state": None})
             if state != record["state"]:
                 self.log(f"Job {job}: " + json.dumps(state, ensure_ascii=False))
@@ -47,7 +51,8 @@ class JobMonitor:
                 record["checks"] += 1
                 reachable = probe(printer.get("device-uri", ""))
                 self.log(f"Job {job}: voortgangscontrole {record['checks']}/3; "
-                         f"USB-zichtbaar={reachable}; standby/ontwaken niet rechtstreeks meetbaar. "
+                         f"USB-busaanwezig={reachable}; alleen sysfs, geen interfaceclaim; "
+                         "standby/ontwaken niet rechtstreeks meetbaar. "
                          "CUPS verstuurt de oorspronkelijke job en herprobeert gemelde backendfouten; "
                          "geen nieuwe kopie ingediend.")
                 if record["checks"] == 3:
