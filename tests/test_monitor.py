@@ -46,6 +46,16 @@ class MonitorTests(unittest.TestCase):
         self.update(300)
         self.probe.assert_not_called()
 
+    def test_minimal_job_list_fetches_queue_and_keeps_monitoring(self):
+        self.connection.getJobs.return_value = {7: {"job-state": 5}}
+        self.connection.getJobAttributes.return_value = {
+            "job-printer-uri": "ipp://localhost/printers/HP_P1102w", "job-state": 5}
+        self.update(0)
+        self.update(60)
+        self.probe.assert_called_once()
+        self.assertIn("job-printer-uri",
+                      self.connection.getJobs.call_args.kwargs["requested_attributes"])
+
     def test_held_job_is_not_released(self):
         self.connection.getJobs.return_value[7]["job-state"] = 4
         self.update(0)

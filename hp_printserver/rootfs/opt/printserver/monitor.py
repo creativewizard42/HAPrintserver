@@ -15,7 +15,16 @@ class JobMonitor:
         if summary != self.last_printer:
             self.log("IPP-printerstatus: " + json.dumps(summary, ensure_ascii=False))
             self.last_printer = summary
-        active = connection.getJobs(which_jobs="not-completed", my_jobs=False)
+        active = connection.getJobs(which_jobs="not-completed", my_jobs=False,
+                                    requested_attributes=[
+                                        "job-id", "job-printer-uri", "job-state",
+                                        "job-state-reasons", "job-state-message",
+                                        "job-impressions-completed"])
+        # Some servers return only a minimal job list. Do not silently discard
+        # jobs when their queue URI is absent from Get-Jobs.
+        active = {job: (connection.getJobAttributes(job)
+                        if "job-printer-uri" not in attributes else attributes)
+                  for job, attributes in active.items()}
         active = {job: attributes for job, attributes in active.items()
                   if attributes.get("job-printer-uri", "").endswith("/printers/" + name)}
         for job, attrs in active.items():

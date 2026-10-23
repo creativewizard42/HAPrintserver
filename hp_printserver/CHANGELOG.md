@@ -1,3 +1,7 @@
+# 0.1.7
+
+- Vraag job-printer-uri en voortgangsattributen expliciet op via IPP; haal jobdetails afzonderlijk op als de joblijst geen wachtrijadres bevat. Dit voorkomt stil overslaan van openstaande opdrachten door de monitor.
+
 # 0.1.6
 
 - IPP-printer- en jobstatus met foutredenen, voortgangscontroles na 60/120/240 seconden en USB-bereikbaarheid van uitsluitend de geconfigureerde printer.
