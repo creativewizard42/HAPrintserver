@@ -1,3 +1,9 @@
+# 0.1.5
+
+- Log printerstatus en openstaande jobs bij wijzigingen, ook na het aanmaken van de wachtrij.
+- CUPS-logniveau info voor afdrukverwerking en backendstatus.
+- Herstel lp-groepstoegang op de persistente spoolmap zonder bestaande jobbestanden te wijzigen.
+
 # 0.1.4
 
 - Herken ook de USB-modelnaam "HP LaserJet Professional P 1102w" met een spatie tussen P en 1102w.

@@ -45,7 +45,7 @@ PreserveJobFiles No
 PreserveJobHistory Yes
 MaxJobs 100
 MaxRequestSize 52428800
-LogLevel warn
+LogLevel info
 <Location />
   Order allow,deny
   Allow localhost
@@ -131,6 +131,10 @@ def main():
     data = Path("/data")
     persist(Path("/etc/cups"), data / "cups", Path("/opt/cups-default"))
     persist(Path("/var/spool/cups"), data / "spool")
+    # Preserve access for CUPS' lp group without changing job-file ownership.
+    # copytree copies modes, but creates the directory with root's group.
+    shutil.chown(data / "spool", user="root", group="lp")
+    (data / "spool").chmod(0o710)
     persist(Path("/var/cache/cups"), data / "cache")
     # copytree preserves modes but not Unix ownership. cupsd drops privileges
     # for driver discovery, so an originally root-owned copy is not writable.
@@ -187,6 +191,7 @@ enable-reflector=no
         driver = select_driver(run("lpinfo", "-m"))
         configured = False
         diagnostic_attempt = 0
+        last_status = None
         while not stopping:
             if any(child.poll() is not None for child in children):
                 raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
@@ -220,6 +225,16 @@ enable-reflector=no
                         diagnostic_attempt += 1
                 except subprocess.SubprocessError:
                     print("USB/CUPS-detectie nog niet gereed; nieuwe poging over 15 seconden", flush=True)
+            if configured:
+                try:
+                    status = run("lpstat", "-p", options["printer_name"], "-l")
+                    jobs = run("lpstat", "-W", "not-completed", "-o", options["printer_name"])
+                    snapshot = status.strip() + "\n" + (jobs.strip() or "Geen wachtende printopdrachten")
+                    if snapshot != last_status:
+                        print("CUPS-wachtrijstatus:\n" + snapshot, flush=True)
+                        last_status = snapshot
+                except subprocess.SubprocessError as error:
+                    print("Wachtrijstatus niet beschikbaar: " + str(error), flush=True)
             for _ in range(15):
                 if stopping:
                     break
