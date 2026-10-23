@@ -87,6 +87,8 @@ gebruik daarbij niet de oude directe wifi-printerwachtrij.
 | `printer_name` | Technische wachtrijnaam; standaard `HP_P1102w` |
 | `printer_description` | Zichtbare naam voor AirPrint en CUPS |
 | `device_uri` | Leeg voor detectie, anders exacte `usb://…`-URI |
+| `usb_unidir` | Standaard `true`; schakel het USB-terugleeskanaal uit als compatibiliteitsmodus. `false` herstelt bidirectioneel verkeer. |
+| `debug_logging` | Standaard `false`; tijdelijk `true` voor uitgebreide CUPS-filter- en USB-backendlogs. |
 
 Wijzig `printer_name` niet nadat clients zijn ingericht: er wordt dan een
 nieuwe wachtrij gemaakt; een oude wachtrij wordt bewust niet automatisch gewist.
@@ -124,6 +126,42 @@ De monitor maakt geen nieuwe job, hervat geen handmatige pauzes en reset geen
 USB-apparaten. De SSD en Zigbee-radio worden niet aangestuurd. Na drie controles
 verschijnt een melding dat controle aan de printer nodig is. Grote documenten
 kunnen deze tijdsdrempels ook tijdens normaal verwerken bereiken.
+
+## Opdracht blijft op printing, printer blijft in standby
+
+`printing` betekent dat CUPS de verwerking gestart heeft; het bewijst niet dat
+USB-data de printer heeft bereikt. Ook een gestarte USB-backend kan nog wachten
+op het apparaat of op filteruitvoer. De voortgangscontrole via USB-detectie is
+geen wekcommando. CUPS herprobeert alleen wanneer de backend een fout teruggeeft.
+
+Vanaf 0.1.8 staat `usb_unidir` standaard aan. Dit gebruikt de ondersteunde
+CUPS-backendoptie `usb-unidir` om het terugleeskanaal uit te schakelen. Het is een
+compatibiliteitspoging voor mogelijke USB-communicatieproblemen, geen bewezen
+oplossing voor deze printer in Auto-Off. Het verandert geen USB-apparaten of
+hostinstellingen en maakt geen extra printopdracht.
+
+1. Werk de app bij naar 0.1.8 en stel `usb_unidir: true` en tijdelijk
+   `debug_logging: true` in. Herstart de app. De startlog toont beide opties.
+2. Controleer bestaande jobs in CUPS voordat je een nieuwe opdracht verstuurt.
+   Een reeds vastgelopen job krijgt gewijzigde wachtrijdefaults niet gegarandeerd
+   mee. Annuleer die zo nodig bewust in CUPS en houd rekening met mogelijke
+   gedeeltelijke uitvoer. Verstuur daarna één kleine testpagina.
+3. Test eerst terwijl de printer met de eigen knop wakker is gemaakt. Test
+   vervolgens dezelfde pagina nadat de printer weer in standby staat. Werkt
+   alleen de eerste test, dan is het probleem specifiek aan slaapstand gekoppeld;
+   werkt geen van beide, onderzoek dan ook de filterketen en USB-toegang.
+4. Bewaar bij mislukken het log vanaf de appstart tot minstens vier minuten na
+   de opdracht. Zoek naar filter-exitcodes, `libusb`, `Waiting for printer`,
+   `Unable to open` en USB-schrijfmeldingen. Die maken onderscheid tussen
+   filterproblemen, apparaatclaim/toegang en het verzenden zelf. Deel geen
+   onnodige documentnamen of andere persoonsgegevens uit debuglogs.
+5. Zet `debug_logging` na de test weer uit. Als de compatibiliteitsmodus geen
+   verbetering geeft, kan `usb_unidir: false` als vergelijking worden getest.
+
+Iedere minuut hoort nu `IPP-monitor actief` te verschijnen. Ontbreekt dat ook
+na de opstartmelding van 0.1.8, dan draait de verwachte versie niet of loopt de
+monitor vast; alleen afwezigheid van CUPS-logregels bewijst geen standbyfout.
+Fysiek ontwaken moet op de Pi worden bevestigd.
 
 ## Vereiste praktijktest vóór dagelijks gebruik
 

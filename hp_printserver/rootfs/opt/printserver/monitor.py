@@ -7,6 +7,7 @@ class JobMonitor:
         self.log = log
         self.jobs = {}
         self.last_printer = None
+        self.last_heartbeat = None
 
     def update(self, connection, name, now, probe):
         printer = connection.getPrinterAttributes(name)
@@ -27,6 +28,10 @@ class JobMonitor:
                   for job, attributes in active.items()}
         active = {job: attributes for job, attributes in active.items()
                   if attributes.get("job-printer-uri", "").endswith("/printers/" + name)}
+        if self.last_heartbeat is None or now - self.last_heartbeat >= 60:
+            self.log(f"IPP-monitor actief: {len(active)} openstaande jobs voor {name}; "
+                     "printerstatus is geen bevestiging van fysiek ontwaken.")
+            self.last_heartbeat = now
         for job, attrs in active.items():
             state = {key: attrs.get(key) for key in (
                 "job-state", "job-state-reasons", "job-state-message", "job-impressions-completed")}

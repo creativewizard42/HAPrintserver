@@ -24,6 +24,15 @@ class ServerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 server.validate(options)
 
+    def test_usb_compatibility_and_debug_flags_reject_strings(self):
+        for key in ("usb_unidir", "debug_logging"):
+            with self.assertRaises(ValueError):
+                server.validate(self.options(**{key: "false"}))
+
+    def test_debug_logging_is_opt_in(self):
+        self.assertIn("LogLevel info\n", server.cups_config())
+        self.assertIn("LogLevel debug\n", server.cups_config(True))
+
     def test_empty_password_requires_configuration(self):
         options = self.options()
         options["admin_password"] = ""

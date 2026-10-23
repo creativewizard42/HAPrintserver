@@ -25,11 +25,14 @@ def validate(options):
     description = options["printer_description"]
     if not description.strip() or any(ord(c) < 32 for c in description):
         raise ValueError("Ongeldige printer_description")
+    for key in ("usb_unidir", "debug_logging"):
+        if key in options and not isinstance(options[key], bool):
+            raise ValueError(f"{key} moet een boolean zijn")
     return options
 
 
-def cups_config():
-    return """Port 631
+def cups_config(debug=False):
+    config = """Port 631
 Listen /run/cups/cups.sock
 ServerAlias *
 WebInterface Yes
@@ -74,6 +77,15 @@ LogLevel info
   </Limit>
 </Policy>
 """
+
+    return config.replace("LogLevel info", "LogLevel debug" if debug else "LogLevel info")
+
+
+def usb_options(options):
+    # CUPS 2.x usb-libusb supports this job option. Keep it out of the
+    # device URI so serial-based detection and exact URI matching still work.
+    return ["-o", "usb-unidir-default=" +
+            ("true" if options.get("usb_unidir", True) else "false")]
 
 
 def airprint_xml(name, description):
@@ -145,7 +157,7 @@ def main():
         if not entry.is_symlink():
             shutil.chown(entry, user="lp", group="lp")
     (data / "cache").chmod(0o770)
-    Path("/etc/cups/cupsd.conf").write_text(cups_config())
+    Path("/etc/cups/cupsd.conf").write_text(cups_config(options.get("debug_logging", False)))
     subprocess.run(["chpasswd"], input=f"printadmin:{options['admin_password']}\n",
                    text=True, check=True)
     for folder in ["/run/cups", "/run/dbus", "/run/avahi-daemon"]:
@@ -199,6 +211,9 @@ enable-reflector=no
         print("Ontwaakcontrole: printdata via USB hoort Auto-Off te beëindigen; "
               "geen apart bevestigd wekcommando. Backendfouten: CUPS retry-job, "
               "interval 60 seconden, limiet 3. Geen fysieke afdrukgarantie.", flush=True)
+        print(f"USB-compatibiliteit: usb_unidir={options.get('usb_unidir', True)}; "
+              f"debug_logging={options.get('debug_logging', False)}. "
+              "Unidirectioneel versturen is geen apart wekcommando.", flush=True)
         while not stopping:
             if any(child.poll() is not None for child in children):
                 raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
@@ -213,7 +228,7 @@ enable-reflector=no
                         args = ["lpadmin", "-p", name, "-v", uri, "-m", driver,
                                 "-D", options["printer_description"],
                                 "-o", "printer-is-shared=true", "-o", "printer-error-policy=retry-job",
-                                "-o", "PageSize=A4"]
+                                "-o", "PageSize=A4", *usb_options(options)]
                         if not existing:
                             args.append("-E")
                         run(*args)

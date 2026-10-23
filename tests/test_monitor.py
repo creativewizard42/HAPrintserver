@@ -56,6 +56,13 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("job-printer-uri",
                       self.connection.getJobs.call_args.kwargs["requested_attributes"])
 
+    def test_heartbeat_continues_when_no_jobs_are_reported(self):
+        self.connection.getJobs.return_value = {}
+        for now in (0, 15, 60, 120):
+            self.update(now)
+        self.assertEqual(sum("IPP-monitor actief:" in line for line in self.logs), 3)
+        self.probe.assert_not_called()
+
     def test_held_job_is_not_released(self):
         self.connection.getJobs.return_value[7]["job-state"] = 4
         self.update(0)

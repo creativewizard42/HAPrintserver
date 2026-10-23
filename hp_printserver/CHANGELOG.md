@@ -1,3 +1,10 @@
+# 0.1.8
+
+- USB-compatibiliteitsmodus `usb_unidir` (standaard aan): geef de CUPS USB-backend `usb-unidir` mee via de wachtrijdefaults om het bidirectionele terugleeskanaal uit te schakelen. Dit is een mogelijke workaround voor vastlopende USB-communicatie, geen bevestigd wekcommando of bewezen oplossing voor Auto-Off.
+- Optionele `debug_logging` voor filter- en USB-backenddiagnose.
+- Iedere minuut een IPP-monitorbericht, ook wanneer CUPS geen openstaande jobs rapporteert.
+- Containertest controleert dat CUPS de USB-optie aan vastgehouden jobs doorgeeft; deze jobs worden niet naar USB verstuurd.
+
 # 0.1.7
 
 - Vraag job-printer-uri en voortgangsattributen expliciet op via IPP; haal jobdetails afzonderlijk op als de joblijst geen wachtrijadres bevat. Dit voorkomt stil overslaan van openstaande opdrachten door de monitor.
