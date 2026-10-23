@@ -20,7 +20,7 @@ class JobMonitor:
                                     requested_attributes=[
                                         "job-id", "job-printer-uri", "job-state",
                                         "job-state-reasons", "job-state-message",
-                                        "job-impressions-completed", "usb-unidir"])
+                                        "job-impressions-completed", "usb-unidir", "usb-no-reattach"])
         # Some servers return only a minimal job list. Do not silently discard
         # jobs when their queue URI is absent from Get-Jobs.
         active = {job: (connection.getJobAttributes(job)
@@ -29,16 +29,17 @@ class JobMonitor:
         active = {job: attributes for job, attributes in active.items()
                   if attributes.get("job-printer-uri", "").endswith("/printers/" + name)}
         if self.last_heartbeat is None or now - self.last_heartbeat >= 60:
-            effective = {job: attrs.get("usb-unidir", "niet ingesteld")
+            effective = {job: {key: attrs.get(key, "niet ingesteld")
+                               for key in ("usb-unidir", "usb-no-reattach")}
                          for job, attrs in active.items()}
             self.log(f"IPP-monitor actief: {len(active)} openstaande jobs voor {name}; "
-                     f"usb-unidir per job={effective}; "
+                     f"USB-opties per job={effective}; "
                      "printerstatus is geen bevestiging van fysiek ontwaken.")
             self.last_heartbeat = now
         for job, attrs in active.items():
             state = {key: attrs.get(key) for key in (
                 "job-state", "job-state-reasons", "job-state-message", "job-impressions-completed",
-                "usb-unidir")}
+                "usb-unidir", "usb-no-reattach")}
             record = self.jobs.setdefault(job, {"since": now, "checks": 0, "state": None})
             if state != record["state"]:
                 self.log(f"Job {job}: " + json.dumps(state, ensure_ascii=False))

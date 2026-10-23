@@ -1,5 +1,5 @@
 name: HP USB AirPrint Server
-version: "0.1.9"
+version: "0.1.10"
 slug: hp_usb_airprint
 description: Persistente USB-printserver voor HP P1102w met IPP en AirPrint
 url: https://github.com/creativewizard42/HAPrintserver/tree/main/hp_printserver
@@ -20,6 +20,7 @@ options:
   printer_description: HP LaserJet P1102w
   device_uri: ""
   usb_unidir: true
+  usb_no_reattach: true
   debug_logging: false
 schema:
   admin_password: password
@@ -27,4 +28,5 @@ schema:
   printer_description: str
   device_uri: str
   usb_unidir: bool
+  usb_no_reattach: bool
   debug_logging: bool

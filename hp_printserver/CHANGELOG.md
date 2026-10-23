@@ -1,3 +1,10 @@
+# 0.1.10
+
+- Voeg `usb_no_reattach` toe (standaard aan) als gerichte, uitschakelbare compatibiliteitspoging. CUPS past deze workaround al toe voor P1102 USB-ID 03f0:002a; de P1102w met 03f0:102a valt niet onder die regel. Fysieke werking op de P1102w is nog niet bevestigd.
+- Voorkom met deze optie dat de USB-backend na een job usblp opnieuw koppelt. Dit is geen wekcommando en herstelt geen reeds geblokkeerde USB-overdracht.
+- Monitor en startlog tonen beide USB-opties. Integratietests controleren alle vier combinaties in echte CUPS-backendargumenten.
+- Documenteer brononderzoek, eenmalig herstel van de printertoestand en afzonderlijke tests bij wakker/standby.
+
 # 0.1.9
 
 - Behoud opdracht- en backenddebugregels in het app-log, maar onderdruk HTTP-debugruis die de backendstart uit de beschikbare loghistorie verdrong. Waarschuwingen en fouten blijven zichtbaar.

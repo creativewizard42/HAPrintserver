@@ -26,7 +26,7 @@ def validate(options):
     description = options["printer_description"]
     if not description.strip() or any(ord(c) < 32 for c in description):
         raise ValueError("Ongeldige printer_description")
-    for key in ("usb_unidir", "debug_logging"):
+    for key in ("usb_unidir", "usb_no_reattach", "debug_logging"):
         if key in options and not isinstance(options[key], bool):
             raise ValueError(f"{key} moet een boolean zijn")
     return options
@@ -83,10 +83,14 @@ LogLevel info
 
 
 def usb_options(options):
-    # CUPS 2.x usb-libusb supports this job option. Keep it out of the
-    # device URI so serial-based detection and exact URI matching still work.
-    return ["-o", "usb-unidir-default=" +
-            ("true" if options.get("usb_unidir", True) else "false")]
+    # CUPS-supported options scoped to this queue. no-reattach is an upstream
+    # workaround for the P1102 (002a); its benefit for P1102w (102a) needs a
+    # hardware test. It prevents reattaching usblp after a job, not a wake/reset.
+    args = []
+    for key in ("usb_unidir", "usb_no_reattach"):
+        args.extend(["-o", key.replace("_", "-") + "-default=" +
+                     ("true" if options.get(key, True) else "false")])
+    return args
 
 
 def airprint_xml(name, description):
@@ -246,6 +250,7 @@ enable-reflector=no
               "geen apart bevestigd wekcommando. Backendfouten: CUPS retry-job, "
               "interval 60 seconden, limiet 3. Geen fysieke afdrukgarantie.", flush=True)
         print(f"USB-compatibiliteit: usb_unidir={options.get('usb_unidir', True)}; "
+              f"usb_no_reattach={options.get('usb_no_reattach', True)}; "
               f"debug_logging={options.get('debug_logging', False)}. "
               "Unidirectioneel versturen is geen apart wekcommando.", flush=True)
         while not stopping:

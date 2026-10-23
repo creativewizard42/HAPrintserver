@@ -25,7 +25,7 @@ class ServerTests(unittest.TestCase):
                 server.validate(options)
 
     def test_usb_compatibility_and_debug_flags_reject_strings(self):
-        for key in ("usb_unidir", "debug_logging"):
+        for key in ("usb_unidir", "usb_no_reattach", "debug_logging"):
             with self.assertRaises(ValueError):
                 server.validate(self.options(**{key: "false"}))
 

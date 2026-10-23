@@ -3,6 +3,7 @@ import cups
 import ctypes
 import ctypes.util
 import importlib.util
+import itertools
 from pathlib import Path
 import subprocess
 import tempfile
@@ -36,8 +37,8 @@ try:
         # allowing the USB backend to transmit to any device.
         server.run("cupsaccept", "Smoke")
         connection = cups.Connection(host="/run/cups/cups.sock")
-        for enabled in (True, False):
-            server.run("lpadmin", "-p", "Smoke", *server.usb_options({"usb_unidir": enabled}))
+        for enabled, no_reattach in itertools.product((True, False), repeat=2):
+            server.run("lpadmin", "-p", "Smoke", *server.usb_options({"usb_unidir": enabled, "usb_no_reattach": no_reattach}))
             job = connection.printFile("Smoke", str(pdf), "USB option check",
                                        {"job-hold-until": "indefinite"})
             try:
@@ -45,9 +46,10 @@ try:
                 assert attrs["job-state"] == 4, attrs
                 actual = str(attrs.get("usb-unidir", "")).lower()
                 assert actual == str(enabled).lower(), (enabled, actual)
+                assert str(attrs.get("usb-no-reattach", "")).lower() == str(no_reattach).lower()
             finally:
                 connection.cancelJob(job)
-        print("PASS: CUPS forwards usb-unidir defaults to held jobs (true/false)")
+        print("PASS: CUPS forwards both USB defaults to held jobs (all four combinations)")
         # A test-only backend captures CUPS' real argv and drains the data.
         # No USB backend or physical device is used for these jobs.
         backend = Path("/usr/lib/cups/backend/optioncheck")
@@ -57,8 +59,8 @@ try:
         backend.chmod(0o755)
         server.run("lpadmin", "-p", "OptionCheck", "-m", driver,
                    "-v", "optioncheck:/sink", "-E")
-        for enabled in (True, False):
-            server.run("lpadmin", "-p", "OptionCheck", *server.usb_options({"usb_unidir": enabled}))
+        for enabled, no_reattach in itertools.product((True, False), repeat=2):
+            server.run("lpadmin", "-p", "OptionCheck", *server.usb_options({"usb_unidir": enabled, "usb_no_reattach": no_reattach}))
             job = connection.printFile("OptionCheck", str(pdf), "Backend argv check", {})
             for _ in range(60):
                 attrs = connection.getJobAttributes(job)
@@ -78,11 +80,12 @@ try:
             parsed = ctypes.c_void_p()
             count = libcups.cupsParseOptions(actual.encode(), 0, ctypes.byref(parsed))
             try:
-                value = libcups.cupsGetOption(b"usb-unidir", count, parsed)
-                assert value == str(enabled).lower().encode(), (enabled, value, actual)
+                for option, expected in ((b"usb-unidir", enabled), (b"usb-no-reattach", no_reattach)):
+                    value = libcups.cupsGetOption(option, count, parsed)
+                    assert value == str(expected).lower().encode(), (option, expected, value, actual)
             finally:
                 libcups.cupsFreeOptions(count, parsed)
-        print("PASS: real CUPS backend argv includes usb-unidir=true/false; filtered jobs completed")
+        print("PASS: real CUPS backend parses both USB options; all four combinations completed")
 
         jpeg = Path(folder) / "page.jpg"
         subprocess.run(["gs", "-q", "-dBATCH", "-dNOPAUSE", "-sDEVICE=jpeg",
