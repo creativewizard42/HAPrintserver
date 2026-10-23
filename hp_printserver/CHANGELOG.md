@@ -1,3 +1,10 @@
+# 0.1.6
+
+- IPP-printer- en jobstatus met foutredenen, voortgangscontroles na 60/120/240 seconden en USB-bereikbaarheid van uitsluitend de geconfigureerde printer.
+- CUPS herprobeert gemelde backendfouten met 60 seconden interval en limiet 3.
+- Log voltooiing als CUPS-status, zonder onbevestigd fysiek ontwaken als succes te melden.
+- Geen dubbele jobindiening, USB-resets of automatisch hervatten van vastgehouden jobs.
+
 # 0.1.5
 
 - Log printerstatus en openstaande jobs bij wijzigingen, ook na het aanmaken van de wachtrij.

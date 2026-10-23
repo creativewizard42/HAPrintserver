@@ -1,5 +1,5 @@
 name: HP USB AirPrint Server
-version: "0.1.5"
+version: "0.1.6"
 slug: hp_usb_airprint
 description: Persistente USB-printserver voor HP P1102w met IPP en AirPrint
 url: https://github.com/creativewizard42/HAPrintserver/tree/main/hp_printserver

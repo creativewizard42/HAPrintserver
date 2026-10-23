@@ -101,8 +101,10 @@ wachtende documenten bevatten. Verwijderen van de app kan deze data verwijderen.
 Afgehandelde documentbestanden worden niet bewaard; jobhistorie wel.
 Er geldt een limiet van 100 jobs en 50 MiB per aanvraag.
 
-Bij tijdelijke apparaatfouten gebruikt CUPS `retry-job`, met 30 seconden
-interval en maximaal 100 pogingen. Daarna kan handmatig ingrijpen nodig zijn;
+Bij tijdelijke apparaatfouten gebruikt CUPS vanaf 0.1.6 `retry-job`, met 60 seconden
+interval en retrylimiet 3. Dit treedt in werking wanneer de backend een fout
+teruggeeft; een backend die blijft wachten kan niet met deze limiet worden
+onderbroken. Daarna kan handmatig ingrijpen nodig zijn;
 controleer de jobstatus in CUPS. Een ontbrekende printer hoort de ontvangst van
 nieuwe jobs niet te blokkeren zodra de wachtrij eenmaal is aangemaakt.
 De app hervat een bewust gepauzeerde wachtrij niet automatisch.
@@ -113,6 +115,15 @@ vereist herstel aan de printer. Deze app schakelt geen slimme stekker en maakt
 geen lege afdrukken om de printer wakker te houden.
 Een verzonden job is geen bewijs van fysieke afdruk; dien een onduidelijke job
 niet blind opnieuw in vanwege mogelijke dubbele afdrukken.
+
+Vanaf 0.1.6 worden IPP-printerstatus, foutredenen, jobstatus en eindstatus gelogd.
+Openstaande jobs krijgen na 60, 120 en 240 seconden zonder paginavoortgang een
+USB-detectiecontrole voor hun exacte apparaatadres. Dit is diagnostiek, geen
+bevestigd weksignaal. Ontwaken wordt via de oorspronkelijke printdata geprobeerd.
+De monitor maakt geen nieuwe job, hervat geen handmatige pauzes en reset geen
+USB-apparaten. De SSD en Zigbee-radio worden niet aangestuurd. Na drie controles
+verschijnt een melding dat controle aan de printer nodig is. Grote documenten
+kunnen deze tijdsdrempels ook tijdens normaal verwerken bereiken.
 
 ## Vereiste praktijktest vóór dagelijks gebruik
 

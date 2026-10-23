@@ -39,8 +39,8 @@ DefaultEncryption IfRequested
 DefaultShared Yes
 DefaultPolicy default
 ErrorPolicy retry-job
-JobRetryInterval 30
-JobRetryLimit 100
+JobRetryInterval 60
+JobRetryLimit 3
 PreserveJobFiles No
 PreserveJobHistory Yes
 MaxJobs 100
@@ -127,6 +127,9 @@ def persist(source, target, seed=None):
 
 
 def main():
+    import cups
+    from monitor import JobMonitor
+
     options = validate(json.loads(Path("/data/options.json").read_text()))
     data = Path("/data")
     persist(Path("/etc/cups"), data / "cups", Path("/opt/cups-default"))
@@ -192,6 +195,10 @@ enable-reflector=no
         configured = False
         diagnostic_attempt = 0
         last_status = None
+        monitor = JobMonitor(lambda message: print(message, flush=True))
+        print("Ontwaakcontrole: printdata via USB hoort Auto-Off te beëindigen; "
+              "geen apart bevestigd wekcommando. Backendfouten: CUPS retry-job, "
+              "interval 60 seconden, limiet 3. Geen fysieke afdrukgarantie.", flush=True)
         while not stopping:
             if any(child.poll() is not None for child in children):
                 raise RuntimeError("Een printserverdienst is gestopt; herstart de app")
@@ -227,13 +234,18 @@ enable-reflector=no
                     print("USB/CUPS-detectie nog niet gereed; nieuwe poging over 15 seconden", flush=True)
             if configured:
                 try:
+                    connection = cups.Connection(host="/run/cups/cups.sock")
+                    monitor.update(connection, options["printer_name"], time.monotonic(),
+                                   lambda expected: any(
+                                       line.split()[1:2] == [expected]
+                                       for line in run("lpinfo", "-v").splitlines()))
                     status = run("lpstat", "-p", options["printer_name"], "-l")
                     jobs = run("lpstat", "-W", "not-completed", "-o", options["printer_name"])
                     snapshot = status.strip() + "\n" + (jobs.strip() or "Geen wachtende printopdrachten")
                     if snapshot != last_status:
                         print("CUPS-wachtrijstatus:\n" + snapshot, flush=True)
                         last_status = snapshot
-                except subprocess.SubprocessError as error:
+                except (subprocess.SubprocessError, cups.IPPError, RuntimeError) as error:
                     print("Wachtrijstatus niet beschikbaar: " + str(error), flush=True)
             for _ in range(15):
                 if stopping:
